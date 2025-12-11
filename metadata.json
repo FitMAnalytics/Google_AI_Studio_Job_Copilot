@@ -1,0 +1,5 @@
+{
+  "name": "JobAlign Copilot",
+  "description": "An AI-powered job application assistant that helps you parse resumes, tailor them to specific job descriptions, generate cover letters, and prepare for interviews using Google Gemini.",
+  "requestFramePermissions": []
+}
