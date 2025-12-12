@@ -163,7 +163,7 @@ export const parseResumeWithGemini = async (
   onTokenUsage?: TokenUsageHandler
 ): Promise<ParsedResume> => {
   try {
-    const modelId = "gemini-3-pro-preview";
+    const modelId = "gemini-2.5-flash";
     
     // Better handling for text-based formats (including extracted text from browser)
     const isTextBased = mimeType.startsWith('text/') || mimeType === 'application/json' || mimeType.includes('tex');
@@ -300,7 +300,7 @@ const enrichmentSchema = {
 };
 
 async function enrichItem(item: CorpusChunk, onTokenUsage?: TokenUsageHandler): Promise<EnrichedCorpusItem | null> {
-  const modelId = "gemini-3-pro-preview";
+  const modelId = "gemini-2.5-flash";
   const prompt = `
     You are a Resume Data Engineer. Optimize this resume data for Vector Retrieval.
     
@@ -564,13 +564,17 @@ export class JobAppCopilot {
   private jdText: string;
   private evidence: string;
   private requirements: string;
-  private modelName: string = "gemini-3-pro-preview";
+  private modelName: string = "gemini-2.5-flash";
+  private companyName: string;
+  private roleTitle: string;
   private onTokenUsage?: TokenUsageHandler;
 
-  constructor(jdText: string, evidence: string, requirements: string[], onTokenUsage?: TokenUsageHandler) {
+  constructor(jdText: string, evidence: string, requirements: string[], company: string, role: string, onTokenUsage?: TokenUsageHandler) {
     this.jdText = jdText;
     this.evidence = evidence;
     this.requirements = requirements.map(r => `- ${r}`).join("\n");
+    this.companyName = company;
+    this.roleTitle = role;
     this.onTokenUsage = onTokenUsage;
   }
 
@@ -593,6 +597,10 @@ export class JobAppCopilot {
         You are an expert Career Strategist and Copywriter acting on behalf of the user.
         Your goal is to draft a high-impact, evidence-based cover letter that bridges the user's past achievements to the company's future needs.  
         
+        ### TARGET CONTEXT
+        - **Target Company:** ${this.companyName}
+        - **Target Role:** ${this.roleTitle}
+
         ### INPUT DATA
         [JOB DESCRIPTION]
         ${this.jdText}
@@ -604,7 +612,7 @@ export class JobAppCopilot {
         ${this.evidence}
         
         ### STRATEGY
-        1. **The Hook:** Start with a strong professional value statement. Do NOT use "I am writing to apply..."
+        1. **The Hook:** Start with a strong professional value statement addressing the company and role directly.
         2. **The Body (The Bridge):** - Identify the top matching skills from the Job Description.
            - Find the Evidence blocks where (Tags: ...) match these skills.
            - Weave those specific [WORK EXPERIENCE] or [PROJECT] stories into the narrative.
@@ -632,7 +640,7 @@ export class JobAppCopilot {
   public async startQuestionMode(tone: string = "professional and confident"): Promise<string> {
     const systemInstruction = `
         You are an expert Career Strategist acting on behalf of the user.
-        Your goal is to draft high-impact, evidence-based answers to job application questions.        
+        Your goal is to draft high-impact, evidence-based answers to job application questions for the **${this.roleTitle}** role at **${this.companyName}**.        
         
         ### INPUT DATA
         [JOB DESCRIPTION]
@@ -683,9 +691,11 @@ export const tailorResume = async (
   originalResume: ParsedResume,
   jdText: string,
   requirements: string[] = [],
+  company: string,
+  role: string,
   onTokenUsage?: TokenUsageHandler
 ): Promise<ParsedResume> => {
-  const modelId = "gemini-3-pro-preview";
+  const modelId = "gemini-2.5-flash";
   
   const prompt = `
     You are an expert Resume Strategist and Editor.
@@ -693,6 +703,10 @@ export const tailorResume = async (
     ### OBJECTIVE
     Take the User's [MASTER RESUME] and tailor it specifically for the [JOB DESCRIPTION].
     Your goal is to maximize the match level by selecting the most relevant experiences and using the JD's keywords to rewrite bullet points.
+
+    ### TARGET CONTEXT
+    - **Target Company:** ${company}
+    - **Target Role:** ${role}
 
     ### INPUT DATA
     [JOB DESCRIPTION]
@@ -724,6 +738,7 @@ export const tailorResume = async (
         - **Action:** You MUST generate a new, targeted summary (3 sentences max).
         - **Even if a summary exists, REWRITE IT to target this specific JD.**
         - **Use bolding for keywords** inside the summary too.
+        - **Context:** Mention the specific role (${role}) if it flows naturally.
   `;
 
   try {
@@ -766,6 +781,21 @@ export const generateMarkdown = (resume: ParsedResume): string => {
     md += `## Professional Summary\n\n${resume.professional_summary}\n\n`;
   }
   
+  // Education (Moved up per user request: Summary -> Education -> Experience -> Projects)
+  if (resume.education && resume.education.length > 0) {
+    md += `## Education\n\n`;
+    resume.education.forEach(edu => {
+      md += `### ${edu.institution_name}\n`;
+      md += `${edu.degree_obtained} | ${edu.graduation_date}\n\n`;
+      if (edu.achievements && edu.achievements.length > 0) {
+        edu.achievements.forEach(ach => {
+          md += `- ${ach}\n`;
+        });
+        md += '\n';
+      }
+    });
+  }
+  
   // Experience
   if (resume.work_experience && resume.work_experience.length > 0) {
     md += `## Work Experience\n\n`;
@@ -789,21 +819,6 @@ export const generateMarkdown = (resume: ParsedResume): string => {
         md += `- ${bp.raw_text}\n`;
       });
       md += '\n';
-    });
-  }
-  
-  // Education
-  if (resume.education && resume.education.length > 0) {
-    md += `## Education\n\n`;
-    resume.education.forEach(edu => {
-      md += `### ${edu.institution_name}\n`;
-      md += `${edu.degree_obtained} | ${edu.graduation_date}\n\n`;
-      if (edu.achievements && edu.achievements.length > 0) {
-        edu.achievements.forEach(ach => {
-          md += `- ${ach}\n`;
-        });
-        md += '\n';
-      }
     });
   }
   
@@ -893,6 +908,20 @@ ${resume.professional_summary ? `
 ${formatText(resume.professional_summary)}
 ` : ''}
 
+${resume.education.length > 0 ? `
+\\section{Education}
+${resume.education.map(edu => `
+\\noindent
+\\textbf{${escapeLatex(edu.institution_name)}} \\hfill ${escapeLatex(edu.graduation_date)} \\\\
+${escapeLatex(edu.degree_obtained)}
+${edu.achievements.length > 0 ? `
+\\begin{itemize}[noitemsep, topsep=2pt, leftmargin=15pt]
+${edu.achievements.map(ach => `    \\item ${formatText(ach)}`).join('\n')}
+\\end{itemize}
+` : '\\vspace{4pt}'}
+`).join('\n')}
+` : ''}
+
 \\section{Experience}
 ${resume.work_experience.map(job => `
 \\noindent
@@ -923,20 +952,6 @@ ${resume.skills.map(group => `
     \\item \\textbf{${escapeLatex(group.category_name)}:} ${escapeLatex(group.items.join(', '))}
 `).join('\n')}
 \\end{itemize}
-` : ''}
-
-${resume.education.length > 0 ? `
-\\section{Education}
-${resume.education.map(edu => `
-\\noindent
-\\textbf{${escapeLatex(edu.institution_name)}} \\hfill ${escapeLatex(edu.graduation_date)} \\\\
-${escapeLatex(edu.degree_obtained)}
-${edu.achievements.length > 0 ? `
-\\begin{itemize}[noitemsep, topsep=2pt, leftmargin=15pt]
-${edu.achievements.map(ach => `    \\item ${formatText(ach)}`).join('\n')}
-\\end{itemize}
-` : '\\vspace{4pt}'}
-`).join('\n')}
 ` : ''}
 
 ${resume.certifications.length > 0 ? `

@@ -33,15 +33,23 @@ export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { 
   );
 };
 
-export const Card: React.FC<{ children: React.ReactNode; className?: string; title?: string | React.ReactNode; subtitle?: string }> = ({ children, className = '', title, subtitle }) => (
-  <div className={`bg-white rounded-xl border border-slate-200 shadow-sm ${className}`}>
+export const Card: React.FC<{ 
+  children: React.ReactNode; 
+  className?: string; 
+  title?: string | React.ReactNode; 
+  subtitle?: string; 
+  noPadding?: boolean;
+}> = ({ children, className = '', title, subtitle, noPadding = false }) => (
+  <div className={`bg-white rounded-xl border border-slate-200 shadow-sm ${className} ${noPadding ? 'flex flex-col' : ''}`}>
     {title && (
-      <div className="px-6 py-4 border-b border-slate-100">
+      <div className="px-6 py-4 border-b border-slate-100 shrink-0">
         <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">{title}</h3>
         {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
       </div>
     )}
-    <div className="p-6">{children}</div>
+    <div className={noPadding ? "flex-1 flex flex-col min-h-0" : "p-6"}>
+      {children}
+    </div>
   </div>
 );
 
@@ -100,7 +108,7 @@ export const ChatInput: React.FC<{
   };
 
   return (
-    <div className="border-t border-slate-200 pt-4 mt-2">
+    <div className="border-t border-slate-200 pt-4 mt-2 p-4">
       <div className="relative flex items-center">
         <input
           type="text"
@@ -223,6 +231,35 @@ export const ResumePreview: React.FC<{
                      <ReactMarkdown>{resume.professional_summary}</ReactMarkdown>
                    </div>
                 </div>
+
+                {/* Education (Moved Up) */}
+                {resume.education && resume.education.length > 0 && (
+                   <div className="mb-4">
+                     <h2 className="text-sm font-bold uppercase border-b border-slate-300 mb-2">Education</h2>
+                     <div className="space-y-3">
+                       {resume.education.map((edu, i) => (
+                         <div key={i}>
+                           <div className="flex justify-between text-xs font-bold">
+                              <span>{edu.institution_name}</span>
+                              <span>{edu.graduation_date}</span>
+                           </div>
+                           <div className="text-xs text-slate-600 italic mb-1">
+                              <span>{edu.degree_obtained}</span>
+                           </div>
+                           {edu.achievements && edu.achievements.length > 0 && (
+                             <ul className="list-disc list-outside ml-4 text-xs space-y-0.5 text-slate-800">
+                                {edu.achievements.map((a, j) => (
+                                  <li key={j} className="pl-1">
+                                    <ReactMarkdown components={{p: ({children}) => <>{children}</>}}>{a}</ReactMarkdown>
+                                  </li>
+                                ))}
+                             </ul>
+                           )}
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                )}
 
                 {/* Experience */}
                 <div className="mb-4">

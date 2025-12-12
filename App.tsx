@@ -12,7 +12,9 @@ import {
   AlertCircle,
   Loader2,
   Heart,
-  Zap
+  Zap,
+  Building2,
+  Briefcase
 } from 'lucide-react';
 import { AppMode, ParsedResume, CopilotAction, FileData, EnrichedCorpusItem, ChatMessage } from './types';
 import { 
@@ -28,8 +30,7 @@ import {
 import { Button, Card, LoadingOverlay, ChatBubble, ChatInput, ResumePreview } from './components/Layout';
 
 // --- LIMIT CONSTANTS ---
-const MAX_DAILY_UPLOADS = 5;
-const MAX_SESSION_TOKENS = 100000;
+const MAX_SESSION_TOKENS = 200000;
 
 // Main App Component
 const App: React.FC = () => {
@@ -40,7 +41,6 @@ const App: React.FC = () => {
   
   // Usage State
   const [tokenUsage, setTokenUsage] = useState<number>(0);
-  const [uploadsLeft, setUploadsLeft] = useState<number>(MAX_DAILY_UPLOADS);
   
   // Vector DB
   const [vectorStore, setVectorStore] = useState<EnrichedCorpusItem[]>([]);
@@ -49,6 +49,8 @@ const App: React.FC = () => {
 
   // Job Context
   const [jobDescription, setJobDescription] = useState<string>('');
+  const [targetCompany, setTargetCompany] = useState<string>('');
+  const [targetRole, setTargetRole] = useState<string>('');
   
   // Chat / Copilot State
   const [activeTab, setActiveTab] = useState<CopilotAction>(CopilotAction.COVER_LETTER);
@@ -66,33 +68,6 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // --- EFFECT: INITIAL LIMIT CHECK ---
-  useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    const storageKey = 'jobalign_daily_usage';
-    const stored = localStorage.getItem(storageKey);
-    
-    if (stored) {
-      try {
-        const data = JSON.parse(stored);
-        if (data.date === today) {
-           setUploadsLeft(Math.max(0, MAX_DAILY_UPLOADS - data.count));
-        } else {
-           // Reset for new day
-           localStorage.setItem(storageKey, JSON.stringify({ date: today, count: 0 }));
-           setUploadsLeft(MAX_DAILY_UPLOADS);
-        }
-      } catch (e) {
-        // Corrupt data, reset
-        localStorage.setItem(storageKey, JSON.stringify({ date: today, count: 0 }));
-        setUploadsLeft(MAX_DAILY_UPLOADS);
-      }
-    } else {
-      localStorage.setItem(storageKey, JSON.stringify({ date: today, count: 0 }));
-      setUploadsLeft(MAX_DAILY_UPLOADS);
-    }
-  }, []);
 
   // Scroll to bottom of chat
   useEffect(() => {
@@ -113,26 +88,11 @@ const App: React.FC = () => {
     });
   };
 
-  const incrementUploadCount = () => {
-    const today = new Date().toISOString().split('T')[0];
-    const storageKey = 'jobalign_daily_usage';
-    const currentUsed = MAX_DAILY_UPLOADS - uploadsLeft;
-    const newUsed = currentUsed + 1;
-    
-    localStorage.setItem(storageKey, JSON.stringify({ date: today, count: newUsed }));
-    setUploadsLeft(Math.max(0, MAX_DAILY_UPLOADS - newUsed));
-  };
-
   // --- HANDLERS ---
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    if (uploadsLeft <= 0) {
-      setError("Daily upload limit reached. Please try again tomorrow.");
-      return;
-    }
 
     // Robust File Type Check
     const isPdf = file.type === 'application/pdf';
@@ -172,15 +132,9 @@ const App: React.FC = () => {
           name: file.name
         });
 
-        setLoadingMessage("Parsing resume with Gemini Pro...");
+        setLoadingMessage("Parsing resume with Gemini Flash 2.5...");
         try {
-          // Increment limit only before success API call initiation or after? 
-          // Better after success to be kind, but usually before to prevent spam. 
-          // We'll do it on successful parse to be user-friendly.
-          
           const parsed = await parseResumeWithGemini(base64Data, mimeType, handleTokenUsage);
-          
-          incrementUploadCount(); // Update limits
           
           setParsedResume(parsed);
           setMode(AppMode.DASHBOARD);
@@ -239,12 +193,15 @@ const App: React.FC = () => {
        return;
     }
 
+    const company = targetCompany.trim() || "the hiring company";
+    const role = targetRole.trim() || "the open position";
+
     // SPECIAL HANDLING FOR TAILOR RESUME (No chat, direct generation)
     if (action === CopilotAction.TAILOR_RESUME) {
         setIsLoading(true);
         setLoadingMessage("Tailoring resume based on JD...");
         try {
-            const tailored = await tailorResume(parsedResume, jobDescription, [], handleTokenUsage);
+            const tailored = await tailorResume(parsedResume, jobDescription, [], company, role, handleTokenUsage);
             setTailoredResumeData(tailored);
         } catch(e: any) {
             setError(`Failed to tailor resume: ${e.message}`);
@@ -277,7 +234,7 @@ const App: React.FC = () => {
       
       const requirements = ["(See extracted requirements in context)"]; 
 
-      const copilot = new JobAppCopilot(jobDescription, evidence, requirements, handleTokenUsage);
+      const copilot = new JobAppCopilot(jobDescription, evidence, requirements, company, role, handleTokenUsage);
       copilotRef.current = copilot;
 
       // 3. Trigger Initial Action
@@ -295,7 +252,7 @@ const App: React.FC = () => {
         setChatHistory([{
           id: Date.now().toString(),
           role: 'model',
-          text: "I'm ready to help with your application questions. You can ask me generic interview questions (e.g., 'Tell me about yourself') or paste specific questions from the application portal.",
+          text: `I'm ready to help you prepare for the **${role}** role at **${company}**. You can ask me generic interview questions or paste specific questions from the portal.`,
           timestamp: Date.now()
         }]);
       } 
@@ -421,40 +378,25 @@ const App: React.FC = () => {
              {/* Upload Card */}
              <div className="bg-white rounded-2xl shadow-2xl border border-indigo-50 p-2 transform hover:-translate-y-1 transition-transform duration-300">
                 <div 
-                  className={`border-2 border-dashed rounded-xl transition-all cursor-pointer group py-12 px-8 text-center ${
-                      uploadsLeft > 0 ? 'border-indigo-100 bg-indigo-50/30 hover:bg-indigo-50 hover:border-indigo-400' : 'border-slate-200 bg-slate-50 opacity-75 cursor-not-allowed'
-                  }`}
-                  onClick={() => uploadsLeft > 0 && fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-indigo-100 rounded-xl bg-indigo-50/30 hover:bg-indigo-50 hover:border-indigo-400 transition-all cursor-pointer group py-12 px-8 text-center"
+                  onClick={() => fileInputRef.current?.click()}
                 >
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5 transition-colors ${
-                      uploadsLeft > 0 ? 'bg-indigo-100 group-hover:bg-indigo-200' : 'bg-slate-200'
-                  }`}>
-                    {uploadsLeft > 0 ? <UploadCloud className="w-8 h-8 text-indigo-700" /> : <AlertCircle className="w-8 h-8 text-slate-500" />}
+                  <div className="w-16 h-16 rounded-full bg-indigo-100 group-hover:bg-indigo-200 flex items-center justify-center mx-auto mb-5 transition-colors">
+                    <UploadCloud className="w-8 h-8 text-indigo-700" />
                   </div>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-2">Upload Your Resume</h3>
                   
-                  {uploadsLeft > 0 ? (
-                      <>
-                        <h3 className="text-2xl font-bold text-slate-900 mb-2">Upload Your Resume</h3>
-                        <p className="text-slate-500 mb-8 max-w-sm mx-auto text-sm leading-relaxed">
-                            <span className="font-semibold text-indigo-600 block mb-1">💡 Pro Tip:</span>
-                            Upload a comprehensive <strong>"Master Resume"</strong> or CV (PDF/TXT/MD).
-                        </p>
-                      </>
-                  ) : (
-                      <>
-                        <h3 className="text-2xl font-bold text-slate-700 mb-2">Daily Limit Reached</h3>
-                        <p className="text-slate-500 mb-8 max-w-sm mx-auto text-sm">
-                            You have used your 5 free uploads for today. Please come back tomorrow!
-                        </p>
-                      </>
-                  )}
+                  <p className="text-slate-500 mb-8 max-w-sm mx-auto text-sm leading-relaxed">
+                     <span className="font-semibold text-indigo-600 block mb-1">💡 Pro Tip:</span>
+                     Upload a comprehensive <strong>"Master Resume"</strong> or CV (PDF/TXT/MD). The more history you provide, the better we can tailor it to specific roles!
+                  </p>
                   
-                  <Button disabled={isLoading || uploadsLeft <= 0} className="w-full max-w-xs shadow-lg shadow-indigo-200 py-3 text-lg">
+                  <Button disabled={isLoading} className="w-full max-w-xs shadow-lg shadow-indigo-200 py-3 text-lg">
                     {isLoading ? (
                        <span className="flex items-center gap-2">
                          <Loader2 className="w-5 h-5 animate-spin" /> Processing...
                        </span>
-                    ) : `Select Resume File (${uploadsLeft} left)`}
+                    ) : 'Select Resume File'}
                   </Button>
                   <input 
                     type="file" 
@@ -551,18 +493,53 @@ const App: React.FC = () => {
             </div>
           </Card>
 
-          {/* Job Description Input - UPDATED SIZE AND TEXT */}
-          <Card title="Target Job" subtitle="Paste the job description below to analyze it.">
+          {/* Job Description Input - UPDATED */}
+          <Card title="Target Job" subtitle="Enter the job details to start generating content.">
             <div className="space-y-4">
-              <textarea
-                className="w-full h-[500px] p-4 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none placeholder-slate-400"
-                placeholder="Paste the full job description here..."
-                value={jobDescription}
-                onChange={(e) => {
-                  setJobDescription(e.target.value);
-                  setError(null);
-                }}
-              />
+              
+              {/* Added: Company and Role Inputs */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                 <div className="space-y-1">
+                   <label className="text-xs font-semibold text-slate-500 ml-1">Company Name</label>
+                   <div className="relative">
+                      <Building2 className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Acme Corp"
+                        value={targetCompany}
+                        onChange={(e) => setTargetCompany(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                   </div>
+                 </div>
+                 <div className="space-y-1">
+                   <label className="text-xs font-semibold text-slate-500 ml-1">Target Role</label>
+                   <div className="relative">
+                      <Briefcase className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Senior Developer"
+                        value={targetRole}
+                        onChange={(e) => setTargetRole(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                   </div>
+                 </div>
+              </div>
+
+              <div className="space-y-1">
+                 <label className="text-xs font-semibold text-slate-500 ml-1">Job Description Text</label>
+                 <textarea
+                   className="w-full h-[400px] p-4 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none placeholder-slate-400"
+                   placeholder="Paste the full job description here..."
+                   value={jobDescription}
+                   onChange={(e) => {
+                     setJobDescription(e.target.value);
+                     setError(null);
+                   }}
+                 />
+              </div>
+              
               <div className="text-xs text-slate-500 flex justify-between">
                 <span>{jobDescription.length} characters</span>
                 {jobDescription.length > 50 && <span className="text-green-600 font-medium">Ready to analyze</span>}
@@ -572,7 +549,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Right Column: Chat Interface OR Resume Preview */}
-        <div className="lg:col-span-8 space-y-6 flex flex-col h-[800px]">
+        <div className="lg:col-span-8 space-y-6 flex flex-col h-full min-h-[600px]">
           
           {/* Action Tabs */}
           <div className="flex p-1 bg-white border border-slate-200 rounded-lg shadow-sm w-fit">
@@ -605,7 +582,7 @@ const App: React.FC = () => {
           )}
 
           {/* CONTENT AREA: Either Chat OR Resume Preview */}
-          <Card className="flex-1 flex flex-col relative overflow-hidden border-slate-200 shadow-md p-0">
+          <Card noPadding className="flex-1 flex flex-col relative overflow-hidden border-slate-200 shadow-md">
             
             {/* 1. TAILOR RESUME VIEW */}
             {activeTab === CopilotAction.TAILOR_RESUME && tailoredResumeData ? (
