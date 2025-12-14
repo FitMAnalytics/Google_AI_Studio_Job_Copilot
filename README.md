@@ -18,9 +18,12 @@ A React + Vite application that turns Gemini 2.5 into a copilot for tailoring re
    ```bash
    npm install
    ```
-2. Create a `.env.local` file in the project root with your key:
+2. Create a `.env.local` file in the project root with your key (either variable name works because Vite maps `GEMINI_API_KEY`
+   to `process.env.API_KEY` during the build):
    ```bash
    GEMINI_API_KEY=your_api_key_here
+   # or
+   API_KEY=your_api_key_here
    ```
 3. Start the dev server:
    ```bash
@@ -51,7 +54,7 @@ The app builds to static assets, so you can host the `dist/` directory on any st
    ```bash
    npm run build
    ```
-2. Deploy the contents of `dist/` to your hosting provider of choice. Ensure `GEMINI_API_KEY` is provided at build time (e.g., via provider environment settings) so the bundled app can access it.
+2. Deploy the contents of `dist/` to your hosting provider of choice. Ensure the Gemini key (`GEMINI_API_KEY` or `API_KEY`) is provided at build time (for static hosts like Netlify/Vercel, add it as an environment variable before running `npm run build`) so the bundled app can access it.
 
 ## Project structure
 ```
