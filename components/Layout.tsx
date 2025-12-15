@@ -232,35 +232,6 @@ export const ResumePreview: React.FC<{
                    </div>
                 </div>
 
-                {/* Education (Moved Up) */}
-                {resume.education && resume.education.length > 0 && (
-                   <div className="mb-4">
-                     <h2 className="text-sm font-bold uppercase border-b border-slate-300 mb-2">Education</h2>
-                     <div className="space-y-3">
-                       {resume.education.map((edu, i) => (
-                         <div key={i}>
-                           <div className="flex justify-between text-xs font-bold">
-                              <span>{edu.institution_name}</span>
-                              <span>{edu.graduation_date}</span>
-                           </div>
-                           <div className="text-xs text-slate-600 italic mb-1">
-                              <span>{edu.degree_obtained}</span>
-                           </div>
-                           {edu.achievements && edu.achievements.length > 0 && (
-                             <ul className="list-disc list-outside ml-4 text-xs space-y-0.5 text-slate-800">
-                                {edu.achievements.map((a, j) => (
-                                  <li key={j} className="pl-1">
-                                    <ReactMarkdown components={{p: ({children}) => <>{children}</>}}>{a}</ReactMarkdown>
-                                  </li>
-                                ))}
-                             </ul>
-                           )}
-                         </div>
-                       ))}
-                     </div>
-                   </div>
-                )}
-
                 {/* Experience */}
                 <div className="mb-4">
                   <h2 className="text-sm font-bold uppercase border-b border-slate-300 mb-2">Experience</h2>
@@ -323,6 +294,35 @@ export const ResumePreview: React.FC<{
                       ))}
                    </div>
                 </div>
+
+                {/* Education (Moved Up) */}
+                {resume.education && resume.education.length > 0 && (
+                   <div className="mb-4">
+                     <h2 className="text-sm font-bold uppercase border-b border-slate-300 mb-2">Education</h2>
+                     <div className="space-y-3">
+                       {resume.education.map((edu, i) => (
+                         <div key={i}>
+                           <div className="flex justify-between text-xs font-bold">
+                              <span>{edu.institution_name}</span>
+                              <span>{edu.graduation_date}</span>
+                           </div>
+                           <div className="text-xs text-slate-600 italic mb-1">
+                              <span>{edu.degree_obtained}</span>
+                           </div>
+                           {edu.achievements && edu.achievements.length > 0 && (
+                             <ul className="list-disc list-outside ml-4 text-xs space-y-0.5 text-slate-800">
+                                {edu.achievements.map((a, j) => (
+                                  <li key={j} className="pl-1">
+                                    <ReactMarkdown components={{p: ({children}) => <>{children}</>}}>{a}</ReactMarkdown>
+                                  </li>
+                                ))}
+                             </ul>
+                           )}
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                )}
 
              </div>
            </div>

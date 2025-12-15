@@ -781,21 +781,6 @@ export const generateMarkdown = (resume: ParsedResume): string => {
     md += `## Professional Summary\n\n${resume.professional_summary}\n\n`;
   }
   
-  // Education (Moved up per user request: Summary -> Education -> Experience -> Projects)
-  if (resume.education && resume.education.length > 0) {
-    md += `## Education\n\n`;
-    resume.education.forEach(edu => {
-      md += `### ${edu.institution_name}\n`;
-      md += `${edu.degree_obtained} | ${edu.graduation_date}\n\n`;
-      if (edu.achievements && edu.achievements.length > 0) {
-        edu.achievements.forEach(ach => {
-          md += `- ${ach}\n`;
-        });
-        md += '\n';
-      }
-    });
-  }
-  
   // Experience
   if (resume.work_experience && resume.work_experience.length > 0) {
     md += `## Work Experience\n\n`;
@@ -827,6 +812,21 @@ export const generateMarkdown = (resume: ParsedResume): string => {
     md += `## Skills\n\n`;
     resume.skills.forEach(skillGroup => {
       md += `**${skillGroup.category_name}:** ${skillGroup.items.join(', ')}\n\n`;
+    });
+  }
+
+  // Education
+  if (resume.education && resume.education.length > 0) {
+    md += `## Education\n\n`;
+    resume.education.forEach(edu => {
+      md += `### ${edu.institution_name}\n`;
+      md += `${edu.degree_obtained} | ${edu.graduation_date}\n\n`;
+      if (edu.achievements && edu.achievements.length > 0) {
+        edu.achievements.forEach(ach => {
+          md += `- ${ach}\n`;
+        });
+        md += '\n';
+      }
     });
   }
 
